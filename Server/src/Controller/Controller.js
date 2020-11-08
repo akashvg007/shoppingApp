@@ -39,7 +39,6 @@ export const addOrder = async (req, res) => {
       updateDate,
       deleted: false,
     });
-    console.log("controller::addOrder:body", req.body);
     const Orders = await orderObj.save();
     makeResponse(res, Orders);
   } catch (err) {
@@ -50,8 +49,28 @@ export const addOrder = async (req, res) => {
 
 export const searchOrder = async (req, res) => {
   try {
-    const { searchText } = req.body;
-    const Orders = await orderSchema.find({ $text: { $search: searchText } });
+    const { searchText, option } = req.body;
+    let dateStart = new Date();
+    let dateEnd = new Date();
+    if (option === 2) {
+      dateStart.setHours(0, 0, 0);
+    } else if (option === 3) {
+      const currentDate = dateStart.getDate();
+      dateStart.setDate(currentDate - 7);
+      dateStart.setHours(0, 0, 0);
+    }
+
+    const Orders = await orderSchema
+      .find({
+        $text: { $search: searchText },
+        deleted: { $ne: true },
+        date: {
+          $gte: dateStart,
+          $lt: dateEnd,
+        },
+      })
+      .sort({ date: "asc" });
+    console.log("searchOrder::Order", Orders);
     makeResponse(res, Orders);
   } catch (err) {
     makeResponse(res, [], true);
@@ -60,6 +79,7 @@ export const searchOrder = async (req, res) => {
 
 export const updateOrder = async (req, res) => {
   try {
+    const { orderId } = req.body;
     const updateDate = new Date();
     const Orders = await orderSchema.find({ orderId });
     for (const k in Orders) {
@@ -78,11 +98,10 @@ export const updateOrder = async (req, res) => {
 export const deleteOrder = async (req, res) => {
   try {
     const { orderId } = req.body;
-    const Orders = await orderSchema.find({ orderId });
-    Orders.deleted = true;
-    Orders.updateDate = new Date();
-    const orderObj = new orderSchema(Orders);
-    await orderObj.save();
+    await orderSchema.update(
+      { orderId },
+      { deleted: true, updateDate: new Date() }
+    );
     makeResponse(res, { status: "sucess" });
   } catch (err) {
     makeResponse(res, [], true);
@@ -91,7 +110,7 @@ export const deleteOrder = async (req, res) => {
 
 export const getOrders = async (req, res) => {
   try {
-    const Orders = await orderSchema.find();
+    const Orders = await orderSchema.find({ deleted: false });
     makeResponse(res, Orders);
   } catch (err) {
     makeResponse(res, [], true);
@@ -101,7 +120,6 @@ export const getOrders = async (req, res) => {
 export const getProducts = async (req, res) => {
   try {
     const products = await productSchema.find();
-    console.log("products==>", products);
     makeResponse(res, products);
   } catch (err) {
     makeResponse(res, [], true);
